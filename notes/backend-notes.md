@@ -368,7 +368,6 @@ app.listen(PORT);
   1. 制作成 token，并返回，储存在本地 cookie 中
   2. 储存 ID 于 mongoDB 中，便于 app 每次能辨认用户
   3. token 是由 server 制作的，储存在用户本地设备，也是由 server 解密的。
-  4.
 
 7. set up mongoDB
 
