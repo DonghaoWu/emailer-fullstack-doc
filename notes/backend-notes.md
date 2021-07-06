@@ -579,3 +579,76 @@ app.get('/api/logout', (req, res) => {
 ```
 
 - 目前位置，可以实现 url sign up/in，同时 logout，然后注册 id 到 mongoDB altas。
+
+7/5 section3: Dev vs Prod Environments
+
+1. configuration.
+
+- Dev: mongoDB/Google API/Cookie Key -- `config/dev.js`
+- Prod: mongoDB/Google API/Cookie Key -- `Use env variabels`
+
+```js
+
+```
+
+- mongoDB altas: create a new database & user credentials
+- production version google API: create a new project/enable api/ google+ api/ production URIs
+-
+
+2. determining environment
+
+- paste the heroku deployed uri to production/ google
+- dev.js/prod.js/keys.js
+
+3. set up two keys
+
+- keys.js
+
+```js
+if (process.env.NODE_ENV === 'production') {
+  module.exports = require('./prod');
+} else {
+  module.exports = require('./dev');
+}
+```
+
+4. production keys
+
+-
+
+```js
+module.exports = {
+  googleClientID: process.env.GOOGLE_CLIENT_ID,
+  googltCLIentSecret: process.env.GOOGLE_CLIENT_SECRET,
+  mongoURI: process.env.MONGO_URI,
+};
+```
+
+- gitignore
+
+```bash
+node_modules
+dev.js
+```
+
+5. 另外一个方案是使用 dotenv，这样使用变量的时候就可以统一使用 process.env，而不管是 dev 还是 prod
+
+6. add heroku variabels
+
+7. heroku http => https
+
+- solution 1
+
+```js
+callbaskURL: `/auth/google/callback`;
+
+googleRedirectURI: 'https://abc.herokuapp.com/auth/google/callback';
+```
+
+- solution 2
+
+```js
+new GoogleStrategy();
+
+proxy: true;
+```
