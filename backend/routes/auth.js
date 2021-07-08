@@ -18,7 +18,9 @@ router.get('/google/logout', (req, res) => {
 });
 
 router.get('/google/current_user', (req, res) => {
-  res.send(req.user);
+  if (!req.user) {
+    res.send(`user has logged out.`);
+  } else res.send(req.user);
 });
 
 module.exports = router;
