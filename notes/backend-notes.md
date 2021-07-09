@@ -651,3 +651,228 @@ new GoogleStrategy();
 
 proxy: true;
 ```
+
+---
+
+7/8:frontend section
+
+1. set up
+
+```bash
+$ npx create-react-app client
+$ npm i concurrently
+```
+
+2. react server & express server
+
+3. backend/package.json
+
+```json
+"client":"npm start ==prefix client",
+"dev":"currently \"npm run server\" \"npm run client\" "
+```
+
+4. proxy setting.
+
+```bash
+$ cd client
+$ npm install http-proxy-middleware@1.0.6
+```
+
+- client/src/setupProxy.js
+
+```js
+const { createProxyMiddleware } = require('http-proxy-middleware');
+module.exports = function (app) {
+  app.use(
+    ['/api', '/auth/google'],
+    createProxyMiddleware({
+      target: 'http://localhost:5000',
+    })
+  );
+};
+```
+
+5. add the second URI redirect to the google project
+
+```diff
++ http://localhost:5000/api/auth/google/callback
++ http://localhost:3000/api/auth/google/callback
+```
+
+6. client/package.json (为什么这样写，原来的版本不可以吗，直接写 proxy 的版本。)
+
+```json
+"proxy":{
+  "/auth/google":{
+    "target":"http://localhost:5000"
+  }
+}
+```
+
+7. 要注意的是这个 app 使用的是 google 的 callback，可能对回传的 uri 有影响。
+
+8. 这里提出一个观点，就是 proxy 只是用于 dev 环境，而不设定 proxy 在 prod 环境也可以运行。`但是在之前的一个 app 之中，不设定 proxy 在 deploy 之后好像不能运行，待考证。`
+
+9. 把 frontend app 和 backend app 放在一起的重要性，
+
+- 不会产生 cross domain。
+- cors policy
+-
+
+10. 开发时使用 2 个 server，产品时使用 1 个 server。
+
+11. 说清楚为什么要增加一个新的 callback，以 3000 为端口。
+
+12. proxy 的设置很有学问。
+
+13. async/await
+
+---
+
+section2: client react setup
+
+1. install
+
+- src folder
+
+```bash
+$ cd client
+$ cd src
+$ touch index.js # redux
+$ touch App.js # react-router
+$ npm i redux react-redux react-router-dom
+```
+
+2. redux review and setup
+
+- authReducer
+- surveysReducer
+
+- auth reducer
+
+- reducers/index.js
+
+```js
+import { combineReducers } from 'redux';
+import authReducer from './authReducer';
+
+export default combineReducers({
+  auth: authReducer,
+});
+```
+
+- authReducer.js
+
+```js
+export default function (state = {}, action) {
+  switch (action.type) {
+    default:
+      return state;
+  }
+}
+```
+
+3. react-router
+
+```js
+
+```
+
+- setup react-router in App.js, setup redux in index.js
+
+- matching routes with Exact
+
+- 没有 exact 就会自动匹配后面的无效字符串，就如
+
+```jsx
+<div>
+  <Header />
+  <Route path="/" component={Landing} />
+  <Route path="/surveys" component={Survey} />
+</div>
+```
+
+- 以上代码是无法访问第二个组件的。
+
+4. Materialize CSS
+
+```jsx
+import React from 'react';
+
+class Header extends Component {
+  render() {
+    return <h2>Header</h2>;
+  }
+}
+
+export default Header;
+```
+
+```bash
+$ npm i materialize-css
+```
+
+```js
+import 'materialize-css/dist/css/materialize.min.css';
+```
+
+5. webpack with css
+
+```js
+
+```
+
+6. Header Design
+
+```jsx
+import React, { Component } from 'react';
+
+class Header extends Component {
+  render() {
+    return (
+      <nav>
+        <div className="nav-wrapper">
+          <a className="left brand-logo">Emailer</a>
+          <a className="">Login With Google</a>
+        </div>
+      </nav>
+    );
+  }
+}
+
+export default Header;
+```
+
+7. container
+
+```js
+<div className='container'>
+```
+
+8. current User API
+9. additional proxy rules
+
+- App component calls the action creator
+
+```bash
+$ cd client
+$ npm i axios redux-thunk
+```
+
+- /src/actions/types.js
+- /src/actions/index.js
+
+```js
+import axios from 'axios';
+import { FETCH_USER } from './types';
+
+const fetchUser = () => async (dispatch) => {
+  const res = await axios.get('/api/current_user');
+  const data = await res.json();
+  dispatch({
+    type: 'FETCH_USER',
+    payload: data,
+  });
+};
+```
