@@ -869,10 +869,448 @@ import { FETCH_USER } from './types';
 
 const fetchUser = () => async (dispatch) => {
   const res = await axios.get('/api/current_user');
-  const data = await res.json();
   dispatch({
     type: 'FETCH_USER',
-    payload: data,
+    payload: res.data,
   });
 };
+```
+
+- call the function. refactor App to a class component, add componentDidMount
+
+```js
+import { connect } from 'react-redux';
+import * as actions from '../actions';
+
+export default connect(null, mapDispatchToProps)(App);
+```
+
+- 在 passport 完成动作后会有一个 cookie 返回并存到 req 上，这时就需要一个 call，在 App 那里，每次开始或者刷新都调用这个函数去获取用户信息。
+
+- authReducer
+
+```js
+let initState = null;
+
+export default function (state = initState, action) {
+  switch (action.type) {
+    case FETCH_USER:
+      return action.payload || false;
+    default:
+      return state;
+  }
+}
+```
+
+```jsx
+import React, { Component } from 'react';
+import { connect } from 'react-redux';
+
+class Header extends Component {
+  renderContent() {
+    switch (this.props.auth) {
+      case null:
+        return 'loading';
+      case false:
+        return (
+          <li>
+            <a href="/auth/google">Login with google</a>
+          </li>
+        );
+      default:
+        return (
+          <li>
+            <a href="/auth/google/logout">Logout</a>
+          </li>
+        );
+    }
+  }
+
+  render() {
+    return (
+      <nav>
+        <div className="nav-wrapper">
+          <a className="left brand-logo">Emailer</a>
+          <ul className="right">
+            <li>{this.renderContent()}</li>
+          </ul>
+        </div>
+      </nav>
+    );
+  }
+}
+
+function mapStateToProps(state) {
+  return {
+    auth: state.auth,
+  };
+}
+export default connect(mapStateToProps, null)(Header);
+```
+
+- callback function
+
+```js
+router.get('/google/callback', passport.authenticate('google'), (req, res) => {
+  res.redirect('/surveys');
+});
+```
+
+- redirect on logout
+
+```js
+router.get('/google/logout', (req, res) => {
+  req.logout();
+  res.redirect('/');
+});
+```
+
+- landing component
+
+```jsx
+import React from 'react';
+
+const Landing = () => {
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <h1>Emailer</h1>
+      Collerct feeback from your users
+    </div>
+  );
+};
+
+export default Landing;
+```
+
+- link tags
+
+```jsx
+import { Link } from 'react-router-dom';
+
+<Link to={this.props.user ? '/surveys' : '/'}>Emailer</Link>;
+```
+
+7/10: client side billing
+
+1. component
+
+- add credits button, credit card form
+
+- stripe for credit card, avoid bad security.
+
+2. install stripe
+
+- sign in stripe website, test data mode
+- API/publishabel key/ Secret key
+- add the keys in frontend
+
+```bash
+$ cd client
+$ npm i react-stripe-checkout
+```
+
+3. hide secret in frontend
+
+- backend/config/dev.js
+
+```js
+module.exports = {
+  striptPublishbleKey: '',
+  stripeSecretKey: '',
+};
+```
+
+- backend/config/prods.js
+
+```js
+module.exports = {
+  striptPublishbleKey: '',
+  stripeSecretKey: '',
+};
+```
+
+- use the new keys
+
+- 要注意的是这个 project 的结构是把 client 文件夹放在 server 之中，这样 client 可以取得 config 里面的 secret。在部署过程中，因为最后都是要把 project 放进 server 文件夹中的，所以放在 prods 中的 key 可以起作用，但放在 dev 中的不起作用。
+
+- use the keys in frontend(dev env)
+
+- 新建 /client/.env.development
+
+```js
+REACT_APP_STRIPE_KEY=
+REACT_APP_STRIPE_KEY=
+```
+
+- 新建 /client/.env.production
+
+```js
+
+```
+
+- access in frontend
+
+```js
+console.log(process.env.REACT_APP_STRIPE_KEY);
+console.log(process.env.NODE_ENV);
+```
+
+4. create a component to render stripe form
+
+- /src/components/Payments.js
+
+```jsx
+import React, { Component } from 'react';
+import StripeCheckout from 'react-stripe-checkout';
+
+import { connect } from 'react-redux';
+import * as action from '../actions';
+
+class Payments extends Component {
+  render() {
+    return (
+      <StripeCheckout
+        name="Emailer"
+        description="$5 fro 5 email credit"
+        amount={500}
+        token={(token) => this.props.handleToken(token)}
+        stripeKey={process.env.REACT_APP_STRIPE_KEY}
+      >
+        <button className="btn">Add credits</button>
+      </StripeCheckout>
+    );
+  }
+}
+
+function mapDispatchToProps(dispatch) {
+  return {
+    handleToken: (token) => dispatch(action.handleToken(token)),
+  };
+}
+
+export default connect(null, mapDispatchToProps)(Payments);
+```
+
+- Header.js
+
+```js
+<li>
+  <Payments />
+</li>
+```
+
+- fix the payment styling
+
+```js
+
+```
+
+5. new action creator
+
+```js
+export const handleToken = (token) => async (dispatch) => {
+  const res = await axios.post('/api/stripe', token);
+
+  dispatch({
+    type: FETCH_USER,
+    payload: res.data,
+  });
+};
+```
+
+6. backend routes
+
+- billRoutes.js
+
+```bash
+$ cd backend
+$ npm i stripe
+```
+
+```js
+const keys = require('../config/keys');
+const stripe = require('stripe')(keys.stripeSecretKey);
+
+const requireLogin = require('../middlewares/requireLogin');
+
+router.post('/api/stripe', requireLogin, async (req, res) => {
+  const charge = await stripe.charges.create({
+    amount: 500,
+    currency: 'usd',
+    description: '$5 for 5 credits.',
+    source: req.body.id,
+  });
+
+  if (!req.user) req.user.credits += 5;
+  const user = await req.user.save();
+  res.send(user);
+});
+```
+
+- use a bodyParser middleware
+
+```bash
+$ cd backend
+$ npm i body-parser
+```
+
+- use the middleware
+- backend/index.js
+
+```js
+const bodyParser = require('body-parser');
+
+const app = express();
+
+app.use(bodyParser.json());
+```
+
+6. add credits to user
+
+- User.js
+
+```js
+const userSchema = new Schema({
+  googlId: String,
+  credits: {
+    type: Number,
+    default: 0,
+  },
+});
+```
+
+7. requiring authentication
+
+- add an auth middleware
+
+- route-specific middlewares
+
+- middlewares/requireLogin.js
+
+```js
+modules.exports = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).send({ error: 'You must login.' });
+  }
+
+  next();
+};
+```
+
+7. displaying credit quantity
+
+- /client/src/components/Header.js
+
+```js
+<li key="3">Credits:{this.props.auth.credits}</li>
+```
+
+8. updating credits
+
+```js
+dispatch(FETCH_USER);
+```
+
+7/10: back end and front end routing in production
+
+1. express with cra in production
+
+- build process,最后需要把 2 个 app 整合到由 backend 提供的 app 上面。
+
+- 也就是使用 backend app 去 handle 所有 production assets
+
+- /backend/index.js
+
+- 如果由 backend 处理 request，则会有 3 中 request，`api/react-route/assets`
+
+```js
+if (process.env.NODE_ENV === 'production') {
+  //express will server up production assets,like main.js
+  app.use(express.static('client/build'));
+  //express will server up the index.html file if it doesn't recognize the route
+  const path = require('path');
+  app.get('*', (req, res) => {
+    res.sendFile(path.resolve(__dirname, 'client', 'build', 'index.html'));
+  });
+}
+```
+
+2. deployment options
+
+- package.json
+
+```js
+"scripts":{
+  "start":"node index.js",
+  "heroku-postbuild":"NPM_CONFIG_PRODUCTION=false npm install --prefix client && npm run build -- prefix client"
+}
+```
+
+- bash
+
+```bash
+$ git add .
+$ git commit -m'ready for commit.'
+$ git push heroku main
+$ heroku open
+$ heroku logs --tail
+```
+
+- testing deployment
+
+---
+
+7/11 Mongoose for Survey
+
+1. survey overview
+
+- server Models
+
+- /backend/models/Survey.js
+
+```js
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
+const recipientSchema = reuqire('./Recipient');
+
+const surveySchema = new Schema({
+  title: String,
+  subject: String,
+  body: String,
+  recipients: [recipientSchema],
+  yes: { type: Number, default: 0 },
+  no: { type: Number, default: 0 },
+  _user:{
+    type:Schema.Types.ObjectId,
+    ref:'User'
+  }
+});
+
+const Survey = mongoose.model('survey', surveySchema);
+
+module.exports = Survey;
+```
+
+- run the file
+- index.js
+
+```js
+require('./models/Survey');
+```
+
+2. recipient.js
+
+```js
+const mongoose = require('mongoose');
+const { Schema } = mongoose;
+
+const recipientSchema = new Schema({
+  email: String,
+  responded: {
+    type: boolean,
+    default: false,
+  },
+});
+
+module.exports = recipientSchema;
 ```
