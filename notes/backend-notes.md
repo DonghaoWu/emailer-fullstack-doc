@@ -1280,10 +1280,12 @@ const surveySchema = new Schema({
   recipients: [recipientSchema],
   yes: { type: Number, default: 0 },
   no: { type: Number, default: 0 },
-  _user:{
-    type:Schema.Types.ObjectId,
-    ref:'User'
-  }
+  _user: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+  },
+  dateSent: Date,
+  lastResponded: Date,
 });
 
 const Survey = mongoose.model('survey', surveySchema);
@@ -1313,4 +1315,44 @@ const recipientSchema = new Schema({
 });
 
 module.exports = recipientSchema;
+```
+
+3. survey creation route handler
+
+- /routes/surveyRoutes.js
+
+```js
+const mongoose = require('mongoose');
+const router = require('express');
+const requireLogin = require('../middlewares/requireLogin');
+const requireCredits = require('../middlewares/requireCredits');
+
+const Survey = mongoose.model('survey', surveySchema);
+
+router.post('/api/surveys', requireLogin, requireCredits, (req, res) => {
+  const { title, subject, body, recipients } = req.body;
+
+  const survey = new Survey({
+    title,
+    subject,
+    body,
+    recipients: recipients.split(',').map((email) => ({ email: email.trim() })),
+    _user: req.user.id,
+    dateSent: Date.now(),
+  });
+});
+```
+
+- new middleware to verify minimum credits
+
+- requireCredits.js
+
+```js
+modules.exports = (req, res, next) => {
+  if (req.user.credits < 1) {
+    return res.status(403).send({ error: 'Not enough credits.' });
+  }
+
+  next();
+};
 ```
