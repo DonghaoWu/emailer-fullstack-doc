@@ -1352,7 +1352,389 @@ modules.exports = (req, res, next) => {
   if (req.user.credits < 1) {
     return res.status(403).send({ error: 'Not enough credits.' });
   }
-
   next();
+};
+```
+
+---
+
+7/13: mailers
+
+1. email template
+
+- identifying unique users
+
+- create mailer
+- sendGrid server
+- sendGrid create email, and when a user click a link, sendGrid knows who clicked it.
+
+- signup for sendgrid account
+- fill out the info form
+- verify account
+- configure a single sender
+- fill out the single sender form
+- verify sender
+- sender verified
+- `generate API key`
+- click the create api key button
+- select access level
+- copy the api key to a safe place
+
+- add keys in dev.js & prod.js
+
+```js
+sendGridKey: 'key';
+```
+
+```bash
+$ npm i sendgrid
+```
+
+- mailer setup
+
+```js
+const mongoose = require('mongoose');
+const router = require('express');
+const requireLogin = require('../middlewares/requireLogin');
+const requireCredits = require('../middlewares/requireCredits');
+const Mailer = require('../services/Mailer');
+
+const surveyTemplate = require('../services/emailTemplates/surveyTemplate.js');
+
+const Survey = mongoose.model('survey', surveySchema);
+
+router.post('/api/surveys', requireLogin, requireCredits, async (req, res) => {
+  const { title, subject, body, recipients } = req.body;
+
+  const survey = new Survey({
+    title,
+    subject,
+    body,
+    recipients: recipients.split(',').map((email) => ({ email: email.trim() })),
+    _user: req.user.id,
+    dateSent: Date.now(),
+  });
+
+  const mailer = new Mailer(survey, surveyTemplate(survey));
+  try {
+    await mailer.send();
+    await survey.save();
+    req.user.credits--;
+    const user = await req.user.save();
+
+    res.send(user);
+  } catch (err) {
+    res.status(422).send(err);
+  }
+});
+```
+
+- services/emailTemplates/surveyTemplate.js
+
+```js
+module.exports = (survey) => {
+  return '<div>' + survey.body + '</div>';
+};
+```
+
+- /backend/services/Mailer.js
+
+```js
+const sendgrid = require('sendgrid');
+const helper = sendgrid.mail;
+
+const keys = require('../config/keys');
+
+class Mailer extends helper.Mail {
+  constructor({ subject, recipients }, content) {
+    super();
+    // this.from_email = new helper.Email('no-reply@emaily.com');
+    this.sgApi = sendgrid(keys.sendGridKey);
+    this.subject = subject;
+    this.content = new helper.Content('text/html', content);
+    this.recipients = this.formatAddresses(recipients);
+    this.addContent(this.body);
+    this.addClickTracking();
+    this.addRecipients();
+  }
+
+  formatAddresses(recipients) {
+    return recipients.mao(({ email }) => {
+      return new helper.Email(email);
+    });
+  }
+
+  addClickTracking() {
+    const trackingSettings = new helper.TrackingSettings();
+    const clickTracking = new helper.ClickTracking(true, true);
+
+    trackingSettings.setClickTracking(clickTracking);
+    this.addTrackingSettings(trackingSettings);
+  }
+
+  addRecipients() {
+    const personalize = new helper.Personalization();
+    this.recipients.forEach((recipient) => {
+      personalize.addTo(recipient);
+    });
+    this.addPersonalization(personalize);
+  }
+
+  async send() {
+    const request = await this.sgApi.emptyRequest({
+      method: 'POST',
+      path: 'v3/mail/send',
+      body: this.toJSON(),
+    });
+
+    const response = this.sgApi.API(request);
+    return response;
+  }
+}
+
+module.exports = Mailer;
+```
+
+```diff
+- this.from_email = new helper.Email('no-reply@emaily.com');
+```
+
+- testing email sending
+
+- improving the email template
+
+```js
+module.exports = (survey) => {
+  return `
+  <html>
+    <body>
+      <div style='text-align:center;'>
+        <h3>I'd like your input!</h3>
+        <p>Please answer the following question:</p>
+        <p>${survey.body}</p>
+
+        <div>
+          <a href='http://localhost:3000'>Yes</a>
+        </div>
+
+        <div>
+          <a href='http://localhost:3000'>No</a>
+        </div>
+
+        </div>
+    </body>
+  </html>
+  `;
+};
+```
+
+- polish in the route handler
+
+```js
+
+```
+
+- feedback for user feedback
+
+- dev.js
+
+```js
+redirectDomain: 'http://localhost:3000';
+```
+
+- prod.js
+
+```js
+redirectDomain: process.env.REDIRECT_DOMAIN;
+```
+
+```js
+const key = require('../../config/keys');
+module.exports = (survey) => {
+  return `
+  <html>
+    <body>
+      <div style='text-align:center;'>
+        <h3>I'd like your input!</h3>
+        <p>Please answer the following question:</p>
+        <p>${survey.body}</p>
+
+        <div>
+          <a href='${keys.redirectDomain}/api/survey/thanks'>Yes</a>
+        </div>
+
+        <div>
+          <a href='${keys.redirectDomain}/api/survey/thanks'>No</a>
+        </div>
+
+        </div>
+    </body>
+  </html>
+  `;
+};
+```
+
+```js
+router.get('/api/surveys/thanks', (req, res) => {
+  res.send('Thanks for voting!');
+});
+```
+
+---
+
+7/13: back to the client:
+
+- add a material icon link in index.html
+
+1. client/src/components/Dashboard
+
+```jsx
+import React from 'react';
+import { Link } from 'react-router-dom';
+
+const Dashboard = () => {
+  return (
+    <div className="fixed-action-btn">
+      <Link to="/surveys/new" className="btn-floating btn-large red">
+        <i className="material-icons">add</i>
+      </Link>
+    </div>
+  );
+};
+
+export default Dashboard;
+```
+
+- materialize / fixed Action button
+
+```jsx
+<div className="container">
+  <Header />
+  <Route path="/" component={Landing} />
+  <Route path="/surveys" component={Dashboard} />
+  <Route path="/surveys/new" component={SurveyNew} />
+</div>
+```
+
+- SurveyNew component
+- redux form
+
+```bash
+$ cd client
+$ npm install redux-form --legacy-peer-deps
+```
+
+- add reducer
+
+```js
+import { combineReducers } from 'redux';
+import { reducer as reduxForm } from 'redux-form';
+
+export default combineReducers({
+  auth: authReducer,
+  form: reduxForm,
+});
+```
+
+- SurveyNew component
+- survey/SurveyNew.jsx
+
+```jsx
+import React, { Component } from 'react';
+import SurveyForm from './SurveyForm';
+
+class SurveyNew extends Component {
+  render() {
+    return (
+      <div>
+        <SurveyForm />
+      </div>
+    );
+  }
+}
+
+export default SurveyNew;
+```
+
+- survey/SurveyForm.js
+
+```js
+import React, { Component } from 'react';
+import { reduxForm, Field } from 'redux-form';
+import SurveyField from './SurveyField';
+import { Link } from 'react-router-dom';
+import _ from 'lodash';
+
+const FIELDS = [
+  {
+    label: 'Survey Title',
+    name: 'title',
+  },
+  { label: 'Subject Line', name: 'subject' },
+  { label: 'Email body', name: 'body' },
+  { label: 'Recipient List', name: 'emails' },
+];
+
+class SurveyForm extends Component {
+  renderFields() {
+    return _.map(FIELDS, ({ label, name }) => {
+      return (
+        <Field
+          key={name}
+          component={SurveyField}
+          type="text"
+          label={label}
+          name={name}
+        />
+      );
+    });
+  }
+
+  render() {
+    return (
+      <div>
+        <form onSubmit={this.props.handleSubmit(values)}>
+          {this.renderFields()}
+          <Link to="/surveys" className="red btn-flat white-text">
+            Cancel
+          </Link>
+          <button className="teal btn-flat right white-text" type="submit">
+            Next
+            <i className="material-icons right">done</i>
+          </button>
+        </form>
+      </div>
+    );
+  }
+}
+
+function validate({ title }) {
+  const errors = {};
+
+  if (!title) {
+    errors.title = 'You must provide a title.';
+  }
+  return errors;
+}
+
+export default reduxForm({
+  validate: validate,
+  form: 'surveyForm',
+})(SurveyForm);
+```
+
+- surveyFields.js
+
+```js
+import React from 'react';
+
+export default ({ input, label, meta: { error, touched } }) => {
+  return (
+    <div>
+      <label>{label}</label>
+      <input {...input} />
+      {touched && error}
+    </div>
+  );
 };
 ```
