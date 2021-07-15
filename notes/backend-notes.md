@@ -1708,12 +1708,15 @@ class SurveyForm extends Component {
   }
 }
 
-function validate({ title }) {
+function validate({ title, subject, body }) {
   const errors = {};
 
-  if (!title) {
-    errors.title = 'You must provide a title.';
-  }
+  _.each(FIELD, ({ name }) => {
+    if (!values[name]) {
+      errors[name] = `You must provide a value.`;
+    }
+  });
+
   return errors;
 }
 
@@ -1738,3 +1741,348 @@ export default ({ input, label, meta: { error, touched } }) => {
   );
 };
 ```
+
+---
+
+7/14: generalizing field validation
+
+```js
+import React from 'react';
+
+export default ({ input, label, meta: { error, touched } }) => {
+  return (
+    <div>
+      <label>{label}</label>
+      <input {...input} />
+      <div className="red-text" style={{ marginBottom: '5px' }}>
+        {touched && error}
+      </div>
+    </div>
+  );
+};
+```
+
+2. validating emails
+
+- utils/validateEmails.js
+
+- email regex
+
+```js
+const re = '';
+
+export default (emails) => {
+  const invalidEmails = emails
+    .split(',')
+    .map((email) => email.trim())
+    .filter((email) => re.test(email) === false);
+
+  if (invalidEmails.length) {
+    return `These emails are invalid:${invalidEmails}.`;
+  }
+
+  return;
+};
+```
+
+- survey/SurveyForm.js
+
+```js
+import React, { Component } from 'react';
+import { reduxForm, Field } from 'redux-form';
+import SurveyField from './SurveyField';
+import { Link } from 'react-router-dom';
+import _ from 'lodash';
+import validateEmails from '../../utils/validateEmails';
+
+const FIELDS = [
+  {
+    label: 'Survey Title',
+    name: 'title',
+  },
+  { label: 'Subject Line', name: 'subject' },
+  { label: 'Email body', name: 'body' },
+  { label: 'Recipient List', name: 'emails' },
+];
+
+class SurveyForm extends Component {
+  renderFields() {
+    return _.map(FIELDS, ({ label, name }) => {
+      return (
+        <Field
+          key={name}
+          component={SurveyField}
+          type="text"
+          label={label}
+          name={name}
+        />
+      );
+    });
+  }
+
+  render() {
+    return (
+      <div>
+        <form onSubmit={this.props.handleSubmit(values)}>
+          {this.renderFields()}
+          <Link to="/surveys" className="red btn-flat white-text">
+            Cancel
+          </Link>
+          <button className="teal btn-flat right white-text" type="submit">
+            Next
+            <i className="material-icons right">done</i>
+          </button>
+        </form>
+      </div>
+    );
+  }
+}
+
+function validate({ title, subject, body }) {
+  const errors = {};
+
+  errors.emails = validataEmails(values.emails || '');
+
+  _.each(FIELD, ({ name }) => {
+    if (!values[name]) {
+      errors[name] = `You must provide a value.`;
+    }
+  });
+
+  return errors;
+}
+
+export default reduxForm({
+  validate: validate,
+  form: 'surveyForm',
+})(SurveyForm);
+```
+
+3. surveyFormReview.js
+
+- toggling visibility
+- /survey/new
+- component state
+
+- survey/SurveyForm.js
+
+```js
+import React, { Component } from 'react';
+import { reduxForm, Field } from 'redux-form';
+import SurveyField from './SurveyField';
+import { Link } from 'react-router-dom';
+import _ from 'lodash';
+import validateEmails from '../../utils/validateEmails';
+
+const FIELDS = [
+  {
+    label: 'Survey Title',
+    name: 'title',
+  },
+  { label: 'Subject Line', name: 'subject' },
+  { label: 'Email body', name: 'body' },
+  { label: 'Recipient List', name: 'recipients' },
+];
+
+class SurveyForm extends Component {
+  renderFields() {
+    return _.map(FIELDS, ({ label, name }) => {
+      return (
+        <Field
+          key={name}
+          component={SurveyField}
+          type="text"
+          label={label}
+          name={name}
+        />
+      );
+    });
+  }
+
+  render() {
+    return (
+      <div>
+        <form onSubmit={this.props.handleSubmit(this.props.onSurveySubmit)}>
+          {this.renderFields()}
+          <Link to="/surveys" className="red btn-flat white-text">
+            Cancel
+          </Link>
+          <button className="teal btn-flat right white-text" type="submit">
+            Next
+            <i className="material-icons right">done</i>
+          </button>
+        </form>
+      </div>
+    );
+  }
+}
+
+function validate({ title, subject, body }) {
+  const errors = {};
+
+  errors.recipients = validataEmails(values.recipients || '');
+
+  _.each(FIELD, ({ name }) => {
+    if (!values[name]) {
+      errors[name] = `You must provide a value.`;
+    }
+  });
+
+  return errors;
+}
+
+export default reduxForm({
+  validate: validate,
+  form: 'surveyForm',
+  destroyOnUnmount: false,
+})(SurveyForm);
+```
+
+- SurveyReview.js
+
+```js
+import _ from 'loadsh';
+import React from 'react';
+import { connect } from 'react-redux';
+import formFields from './formFields.js';
+import * as actions from '../../actions';
+
+const SurveyFormReview = ({ onCancel, formValues, submitSurvey }) => {
+  const reviewFields = _.map(formFields, (field) => {
+    return (
+      <div key={field.name}>
+        <label>{field.label}</label>
+        <div>{formValues[field.name]}</div>
+      </div>
+    );
+  });
+
+  return (
+    <div>
+      <h5>hello</h5>
+      {reviewFields}
+      <button
+        className="yellow darken-3 white-text btn-flat"
+        onCLick={() => submitSurvey(formValues)}
+      >
+        Back
+      </button>
+      <button className="green right btn-flat white-text" onCLick={onCancel}>
+        Send Survey
+        <i className="material-icons right">email</i>
+      </button>
+    </div>
+  );
+};
+
+function mapStateToProps(state) {
+  return {
+    formValues: state.form.surveyForm.values,
+  };
+}
+
+export default connect(mapStateToProps, actions)(SurveyFormReview);
+```
+
+- SurveyNew.js
+
+```jsx
+import React, { Component } from 'react';
+import { reduxForm } from 'redux-form';
+import SurveyForm from './SurveyForm';
+import SurveyFormReview from './SurveyFormReview';
+
+class SurveyNew extends Component {
+  state = { showFormReview: false };
+
+  renderContent() {
+    if (this.state.showFormReview === true) {
+      return (
+        <SurveyFormReview
+          onCancel={() => this.setState({ showFormReview: false })}
+        />
+      );
+    } else {
+      return (
+        <SurveyForm
+          onSurveySubmit={() => this.setState({ showFormReview: true })}
+        />
+      );
+    }
+  }
+
+  render() {
+    return <div>{this.renderContent()}</div>;
+  }
+}
+
+export default reduxForm({
+  form: 'surveyForm',
+})(SurveyNew);
+```
+
+- persisting form values
+
+- new action creator
+
+```js
+export const submitSurvey = (values, history) => async (dispatch) => {
+  const res = await axios.post('/api/surveys', values);
+
+  history.push('/surveys');
+  dispatch({ type: FETCH_USER, payload: res.data });
+};
+```
+
+- redirect on submit
+
+```js
+import _ from 'loadsh';
+import React from 'react';
+import { connect } from 'react-redux';
+import formFields from './formFields.js';
+import * as actions from '../../actions';
+import { withRouter } from 'react-router';
+
+const SurveyFormReview = ({ onCancel, formValues, submitSurvey, history }) => {
+  const reviewFields = _.map(formFields, (field) => {
+    return (
+      <div key={field.name}>
+        <label>{field.label}</label>
+        <div>{formValues[field.name]}</div>
+      </div>
+    );
+  });
+
+  return (
+    <div>
+      <h5>hello</h5>
+      {reviewFields}
+      <button
+        className="yellow darken-3 white-text btn-flat"
+        onCLick={() => submitSurvey(formValues, history)}
+      >
+        Back
+      </button>
+      <button className="green right btn-flat white-text" onCLick={onCancel}>
+        Send Survey
+        <i className="material-icons right">email</i>
+      </button>
+    </div>
+  );
+};
+
+function mapStateToProps(state) {
+  return {
+    formValues: state.form.surveyForm.values,
+  };
+}
+
+export default connect(mapStateToProps, actions)(withRouter(SurveyFormReview));
+```
+
+---
+
+7/15 handing webhook data
+
+1. 

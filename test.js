@@ -1,8 +1,30 @@
-const express = require('express');
-const app= express();
+import React, { Component } from 'react';
+import { reduxForm } from 'redux-form';
+import SurveyForm from './SurveyForm';
+import SurveyFormReview from './SurveyFormReview';
 
-app.get('/',(req,res)=>{
-    res.send({hi:'there'})
-});
+class SurveyNew extends Component {
+  state = { showFormReview: false };
 
-app.listen(5000)
+  renderContent() {
+    if (this.state.showFormReview === true) {
+      return (
+        <SurveyFormReview
+          onCancel={() => this.setState({ showFormReview: false })}
+        />
+      );
+    } else {
+      return (
+        <SurveyForm
+          onSurveySubmit={() => this.setState({ showFormReview: true })}
+        />
+      );
+    }
+  }
+
+  render() {
+    return <div>{this.renderContent()}</div>;
+  }
+}
+
+export default SurveyNew;
