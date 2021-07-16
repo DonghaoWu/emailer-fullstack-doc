@@ -2289,3 +2289,117 @@ router.get('/api/surveys', requireLogin, async (req, res) => {
   res.send(surveys);
 });
 ```
+
+---
+
+7/16 last section
+
+1. front end part
+
+- actions/types.js
+
+```js
+export const FETCH_SURVEYS = 'fetch_surveys';
+```
+
+- index.js
+
+```js
+import { FETCH_SURVEYS } from './types';
+export const fetchSurveys = () => async (dispatch) => {
+  const res = await axios.get('/api/surveys');
+
+  dispatch({
+    type: FETCH_SURVEYS,
+    payload: res,
+  });
+};
+```
+
+- reducers/surveysReducer.js
+
+```js
+import { FETCH_SURVEYS } from '../actions/types';
+
+export default function (state = [], action) {
+  switch (action.type) {
+    case FETCH_SURVEYS:
+      return action.payload;
+    default:
+      return state;
+  }
+}
+```
+
+- reducers/index.js
+
+```js
+import { combineReducers } from 'redux';
+import { reducer as reduxForm } from 'redux-form';
+import authReducer from './authReducer';
+import surveysReducer from './surveysReducer';
+
+export default combineReducers({
+  auth: authReducer,
+  form: reduxForm,
+  surveys: surveysReducer,
+});
+```
+
+2. wiring react to redux
+
+- SurveyList.js
+
+```js
+import React, { Component } from 'react';
+import { connect } from 'react-redux';
+import { fetchSurveys } from '../../actions/index';
+
+class SurveyList extends Component {
+  componentDidMOunt() {
+    this.props.fetchSurveys();
+  }
+  render() {
+    return (
+      <div>
+        {this.props.surveys.reverse().map((el) => {
+          return (
+            <div className="card darken-1" key={survey._id}>
+              <div className="card-content">
+                <span calssName="card-title">{survey.title}</span>
+                <p>{survey.body}</p>
+                <p className="right">
+                  Send on:{new Date(survey.dateSent).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="card-action">
+                <a>Yes:{survey.yes}</a>
+                <a>No:{survey.no}</a>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+}
+
+function mapStateToProps(state) {
+  return {
+    surveys: state.surveys,
+  };
+}
+
+export default connect(mapStateToProps, { fetchSurveys })(SurveyList);
+```
+
+
+- expanding the app
+
+```diff
++ css
++ user can delete survey
++ specify the from field on survey emails
++ allow client side sorting of surveys
++ all surveys to be created in draft mode
+```
