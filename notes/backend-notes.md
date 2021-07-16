@@ -2085,4 +2085,207 @@ export default connect(mapStateToProps, actions)(withRouter(SurveyFormReview));
 
 7/15 handing webhook data
 
-1. 
+1. feedback with webhooks
+
+2. webhooks in development
+
+```bash
+$ cd backend
+$ npm i localtunnel
+```
+
+- 使用 ngrok 代替 localTunnel
+
+3. localTunnel setup
+
+- package.json
+
+```js
+"dev":"currently \"npm run server\" \"npm run client\" \"npm run webhook\"",
+"webhook":"lt -p 5000 -s abcdeee"
+```
+
+- ngrok setup instead localTunnel
+
+```bash
+$ npx ngrok http 5000
+```
+
+4. testing webhooks
+
+- add a url in sendgrid mail setting configuration.
+
+```js
+https: abcdeee.localtunnel.me / api / surveys / webhooks;
+```
+
+- select actions: clicked, chekc mark
+-
+
+- button test your integration
+
+```js
+router.post('/api/surveys/webhooks', () => {
+  console.log(req.body);
+  res.send({});
+});
+```
+
+5. encoding survey data
+
+```diff
+- /api/survey/thanks
++ /api/survey/:choice
+```
+
+```js
+const key = require('../../config/keys');
+module.exports = (survey) => {
+  return `
+  <html>
+    <body>
+      <div style='text-align:center;'>
+        <h3>I'd like your input!</h3>
+        <p>Please answer the following question:</p>
+        <p>${survey.body}</p>
+
+        <div>
+          <a href='${keys.redirectDomain}/api/survey/${survey.id}/yes'>Yes</a>
+        </div>
+
+        <div>
+          <a href='${keys.redirectDomain}/api/survey/${survey.id}/no'>No</a>
+        </div>
+
+        </div>
+    </body>
+  </html>
+  `;
+};
+```
+
+6. dirty data from webhooks, prevent repeat.
+
+- processing pipeline
+
+```bash
+$ npm i lodash path-parser
+```
+
+- surveyRoutes.js
+
+- unique events
+
+```js
+const _ = require('lodash');
+const { Path } = require('path-parser');
+const { URL } = require('url');
+
+router.post('/api/surveys/webhooks', () => {
+  const p = new Path('/api/surveys/:surveyId/:choice');
+
+  const events = _.chain(req.body)
+    .map(req.body, (event) => {
+      const match = p.test(new URL(event.url).pathname);
+      if (match) {
+        return {
+          email: event.email,
+          surveyId: match.surveyId,
+          choice: match.choice,
+        };
+      }
+    })
+    .compact()
+    .uniqBy('email', 'surveyId')
+    .value();
+
+  console.log(events);
+});
+```
+
+- bad mongoose queries
+- finding the exact survey
+
+```js
+choice = 'yes' || 'no';
+Survey.updateOne(
+  {
+    id: surveyId,
+    recipients: {
+      $elemMatch: { email: email, responded: false },
+    },
+  },
+  {
+    $inc: { [choice]: 1 },
+    $set: { 'recipients.$.responded': true },
+  }
+);
+```
+
+6. executing queries
+
+```js
+const _ = require('lodash');
+const { Path } = require('path-parser');
+const { URL } = require('url');
+const mongoose = require('mongoose');
+const Survey = mongoose.model('survey');
+
+router.post('/api/surveys/webhooks', (req, res) => {
+  const p = new Path('/api/surveys/:surveyId/:choice');
+
+  _.chain(req.body)
+    .map(req.body, (event) => {
+      const match = p.test(new URL(event.url).pathname);
+      if (match) {
+        return {
+          email: event.email,
+          surveyId: match.surveyId,
+          choice: match.choice,
+        };
+      }
+    })
+    .compact()
+    .uniqBy('email', 'surveyId')
+    .each(({ surveyId, email, choice }) => {
+      Survey.updateOne(
+        {
+          _id: surveyId,
+          recipients: {
+            $elemMatch: { email: email, responded: false },
+          },
+        },
+        {
+          $inc: { [choice]: 1 },
+          $set: { 'recipients.$.responded': true },
+          lastResponded: new Date(),
+        }
+      ).exec();
+    })
+    .value();
+
+  res.send({});
+});
+```
+
+- mongo tips, stackflow, node
+
+```js
+
+```
+
+---
+
+7/15 hte home stretch
+
+1. fetching a list of surveys
+
+```js
+router.get('/api/surveys', requireLogin, async (req, res) => {
+  const surveys = await Survey.find({ _user: req.user.id }).select({
+    recipients: false,
+  });
+
+  res.send(surveys);
+});
+```
