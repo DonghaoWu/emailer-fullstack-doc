@@ -2403,3 +2403,5 @@ export default connect(mapStateToProps, { fetchSurveys })(SurveyList);
 + allow client side sorting of surveys
 + all surveys to be created in draft mode
 ```
+
+- 7/24 will work on this project again from backend.
