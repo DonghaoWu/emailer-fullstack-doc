@@ -2409,3 +2409,5 @@ export default connect(mapStateToProps, { fetchSurveys })(SurveyList);
 - 7/24 watch videos.
 
 - 7/25 read documentation about sendGrid.
+
+- 7/26 read documentation about sendGrid.
